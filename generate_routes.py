@@ -94,5 +94,5 @@ if __name__ == "__main__":
         "type": "FeatureCollection",
         "features": routes,
     }
-    with open("citibike_routes.json", "w") as f:
+    with open("citibike_routes.geojson", "w") as f:
         json.dump(result, f)
