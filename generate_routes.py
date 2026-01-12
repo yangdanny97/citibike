@@ -86,6 +86,9 @@ if __name__ == "__main__":
             (destination["lat"], destination["lon"]),
             API_KEY
         )
+        route["properties"]["duration_s"] = ride["duration"] // 1000
+        route["properties"]["origin"] = ride["startAddress"]
+        route["properties"]["destination"] = ride["endAddress"]
         routes.append(route)
     result = {
         "type": "FeatureCollection",
