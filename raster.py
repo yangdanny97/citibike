@@ -1,12 +1,11 @@
-"""Rasterize routes from citibike_routes.geojson into a count GeoTIFF.
+"""
+Rasterize routes from citibike_routes.geojson into a count GeoTIFF & a PNG
 
 Creates a raster (default 2000x2000) where each pixel's value is the
 number of route geometries that pass through that pixel.
 
 Usage:
 python3 raster.py --geojson citibike_routes.geojson
-
-Dependencies: numpy, rasterio, shapely, pillow
 """
 
 from pathlib import Path
@@ -20,6 +19,7 @@ from rasterio.features import rasterize
 from shapely.geometry import shape, LineString, MultiLineString
 from pyproj import Transformer
 import math
+import matplotlib
 from PIL import Image
 
 
@@ -122,35 +122,44 @@ def write_geotiff(path, counts, transform, crs="EPSG:4326"):
         dst.write(counts, 1)
 
 
-def write_bucketed_png(path, counts):
-    """Write a PNG where counts are bucketed into three colors:
-    1-10: red, 11-50: orange, 51+: yellow
+def write_colormap_png(path, counts, cmap_name="inferno"):
+    """Write a PNG using histogram-equalized values mapped through a
+    matplotlib colormap (`cmap_name`). Zeros are kept mapped to 0 (lowest
+    color).
     """
-    # colors as RGB
-    red = (255, 0, 0)
-    orange = (255, 165, 0)
-    yellow = (255, 255, 0)
-    white = (255, 255, 255)
-
-    # prepare RGB image array
     h, w = counts.shape
-    img = np.zeros((h, w, 3), dtype=np.uint8)
+    flat = counts.ravel()
 
-    # apply buckets
+    # ignore zeros when building histogram equalization (so empty pixels
+    # don't dominate the mapping)
+    mask = flat > 0
+    if mask.sum() == 0:
+        # all zeros -> output a black image
+        img = np.zeros((h, w, 3), dtype=np.uint8)
+        Image.fromarray(img, mode="RGB").save(path)
+        return
 
-    mask_red = (counts > 0) & (counts <= 2)
-    mask_orange = (counts > 2) & (counts <= 10)
-    mask_yellow = (counts > 10) & (counts <= 20)
-    mask_white = counts > 20
+    vals = flat[mask].astype(np.int64)
+    maxv = vals.max()
 
-    img[mask_red] = red
-    img[mask_orange] = orange
-    img[mask_yellow] = yellow
-    img[mask_white] = white
+    # build histogram and CDF
+    hist = np.bincount(vals, minlength=maxv + 1)
+    cdf = hist.cumsum().astype(np.float64)
+    cdf = cdf / cdf[-1]
 
-    # create and save image
-    im = Image.fromarray(img, mode="RGB")
-    im.save(path)
+    # mapping function: for a value v>0, normalized = cdf[v]
+    mapped = np.zeros_like(flat, dtype=np.float32)
+    mapped[mask] = cdf[flat[mask]]
+    mapped = mapped.reshape((h, w))
+
+    # pyrefly: ignore
+    cmap = matplotlib.colormaps.get_cmap(cmap_name)
+
+    # pyrefly: ignore
+    rgba = cmap(mapped)  # returns floats in [0,1], shape (h,w,4)
+    rgb = (rgba[..., :3] * 255).astype(np.uint8)
+
+    Image.fromarray(rgb, mode="RGB").save(path)
 
 
 def main():
@@ -164,6 +173,8 @@ def main():
                    help="Raster width in pixels")
     p.add_argument("--height", type=int, default=2000,
                    help="Raster height in pixels")
+    p.add_argument("--cmap", type=str, default="inferno",
+                   help="Matplotlib colormap name to use for PNG (e.g. inferno, viridis)")
     p.add_argument("--jitter", type=float, default=0.0,
                    help="Max jitter per point in meters (default 0)")
     args = p.parse_args()
@@ -199,8 +210,8 @@ def main():
     # also emit a bucketed PNG next to the output GeoTIFF
     out_png = Path(args.out).with_suffix('.png')
     try:
-        write_bucketed_png(out_png, counts)
-        print(f"Wrote raster with shape {counts.shape} to {args.out} and bucketed PNG to {out_png}")
+        write_colormap_png(out_png, counts, cmap_name=args.cmap)
+        print(f"Wrote raster with shape {counts.shape} to {args.out} and PNG to {out_png} (cmap={args.cmap})")
     except Exception as e:
         print(f"Wrote raster to {args.out}. Failed to write PNG: {e}")
 

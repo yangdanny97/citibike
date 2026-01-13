@@ -3,3 +3,4 @@ rasterio
 shapely
 Pillow
 pyproj
+matplotlib
