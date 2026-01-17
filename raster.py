@@ -1,7 +1,7 @@
 """
 Rasterize routes from citibike_routes.geojson into a count GeoTIFF & a PNG
 
-Creates a raster (default 2000x2000) where each pixel's value is the
+Creates a raster where each pixel's value is the
 number of route geometries that pass through that pixel.
 
 Usage:
@@ -169,13 +169,13 @@ def main():
                    help="Routes GeoJSON file")
     p.add_argument("--out", default="citibike_raster.tif",
                    help="Output GeoTIFF path")
-    p.add_argument("--width", type=int, default=2000,
+    p.add_argument("--width", type=int, default=4000,
                    help="Raster width in pixels")
-    p.add_argument("--height", type=int, default=2000,
+    p.add_argument("--height", type=int, default=4000,
                    help="Raster height in pixels")
     p.add_argument("--cmap", type=str, default="inferno",
                    help="Matplotlib colormap name to use for PNG (e.g. inferno, viridis)")
-    p.add_argument("--jitter", type=float, default=0.0,
+    p.add_argument("--jitter", type=float, default=20,
                    help="Max jitter per point in meters (default 0)")
     args = p.parse_args()
 
